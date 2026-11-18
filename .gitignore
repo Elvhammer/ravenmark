@@ -1,0 +1,30 @@
+# Godot 4: import cache and editor state (rebuilt automatically when the project is opened)
+.godot/
+# Keep the *.import files next to the images: they hold the import settings (pixel-art, no filtering).
+
+# Exported builds
+/build/
+/export/
+*.pck
+*.exe
+
+# Packaged downloads of the project
+*.zip
+
+# Raw Movie Maker recordings from the autotest (convert to .mp4 for docs/prototype instead)
+*.avi
+
+# Python (the art and map generators in tools/)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS and editor clutter
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.vscode/
+.idea/

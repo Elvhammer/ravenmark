@@ -1,0 +1,24 @@
+stage 0: holding nothing
+   reachable maps: cellar, fisher, inn, overworld, store, workshop (2322 tiles)
+   can now find: ['axe', 'coin', 'ring', 'running_shoes', 'ship_bell', 'walking_stick']
+stage 1: holding ['axe']
+   reachable maps: cave, cellar, fisher, inn, overworld, store, workshop (2461 tiles)
+   can now find: ['otter_stick']
+stage 2: holding ['axe', 'otter_stick']
+   reachable maps: cave, cellar, fisher, inn, museum, overworld, south, store, workshop (6569 tiles)
+   can now find: ['ferry_pass', 'float', 'pickaxe']
+stage 3: holding ['axe', 'otter_stick', 'pickaxe']
+   reachable maps: cave, cellar, fisher, inn, museum, overworld, south, store, workshop (6867 tiles)
+   can now find: ['amber_heart', 'bird_bell']
+stage 4: holding ['axe', 'bird_bell', 'otter_stick', 'pickaxe']
+   reachable maps: cave, cellar, fisher, inn, museum, north, overworld, south, store, workshop (8285 tiles)
+   can now find: ['frost_crystal', 'seal_flute']
+stage 5: holding ['axe', 'bird_bell', 'otter_stick', 'pickaxe', 'seal_flute']
+   reachable maps: cave, cellar, fisher, inn, museum, north, overworld, south, store, workshop (11192 tiles)
+   can now find: ['whale_horn', 'whale_tooth']
+stage 6: holding ['axe', 'bird_bell', 'otter_stick', 'pickaxe', 'seal_flute', 'whale_horn']
+   reachable maps: cave, cellar, east, fisher, inn, museum, north, ocean, overworld, south, store, workshop (26541 tiles)
+   can now find: ['dragon_band', 'jade_figure', 'old_chart']
+stage 7: holding ['axe', 'bird_bell', 'dragon_band', 'otter_stick', 'pickaxe', 'seal_flute', 'whale_horn']
+   reachable maps: cave, cellar, east, fisher, inn, museum, north, ocean, overworld, south, store, workshop (26541 tiles)
+PROGRESSION OK

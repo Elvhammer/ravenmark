@@ -1,0 +1,202 @@
+shot  01_keelvik_summer
+PASS  walk west 6 tiles
+shot  02_lauvdal_summer
+PASS  forest blocks walking south out of Lauvdal
+PASS  hop down the ledge (lands 2 tiles below it)
+PASS  cannot climb back up the ledge
+shot  03_sule_ness_ledges
+PASS  Otter Stick: surf off the pier
+shot  04_surfing_otter
+PASS  otter refuses the cold Rimestream
+shot  05_otter_refuses_cold
+PASS  seal swims in cold water
+shot  06_seal_in_cold_water
+shot  07_lauvdal_autumn
+PASS  walk onto the frozen river in winter
+shot  08_frozen_river_winter
+PASS  open the chest on Damholm (only reachable over ice)
+shot  09_damholm_chest
+shot  10_keelvik_spring
+shot  11_keelvik_winter
+PASS  thaw under the player: switches to surfing
+shot  12_keelvik_dawn
+shot  13_keelvik_day
+shot  14_keelvik_dusk
+shot  15_keelvik_night
+PASS  lights glow at night
+PASS  lights are off by day
+PASS  T jumps from night to dawn (04:00)
+shot  16_lighthouse_night
+shot  17_keelvik_winter_evening
+PASS  midnight after 2 days advances the season
+PASS  walk through the inn door into the inn
+shot  20_inn
+shot  21_talk_across_the_counter
+PASS  talk to Marit across the counter (she remembers)
+PASS  cellar door is locked without the key
+shot  22_ring_sparkle
+PASS  find Marit's lost ring (sparkle on the river bank)
+PASS  return the ring: Marit gives the cellar key
+PASS  the cellar opens with the key
+shot  23_cellar
+PASS  the cellar hides an old ship's bell (a museum piece)
+shot  24_cracked_rock
+PASS  cracked rock blocks the cave mouth
+PASS  the pickaxe breaks the rock for good
+PASS  walk into the Sule Ness cave
+PASS  without a light you cannot go deep into the cave
+shot  25_cave_dark
+shot  26_low_tide_sandbar
+PASS  walk the sandbar to the tide islet at dawn
+PASS  tide islet chest: 800 coins
+PASS  the tide comes in: you wade back to the beach
+PASS  at high tide the sandbar is under water
+PASS  enter Halvard's store
+shot  27_shop
+PASS  buy lamp oil (4) at the store
+PASS  ship plans are not for sale yet
+PASS  favour: lamp oil for Ole, who gives his lantern
+PASS  with the lantern the cave can be explored
+shot  28_cave_lantern
+PASS  the cave hides the Amber Heart (rare item)
+PASS  big coin reward in the cave (5000)
+PASS  the store now stocks the 25000-coin ship plans
+PASS  the tunnel leads up to the Moonlit Grove
+PASS  a young tree blocks the grove path
+shot  29_sapling
+PASS  the axe clears the fallen trees for good
+PASS  Selma is not in the grove by day
+PASS  Selma appears in the Moonlit Grove at night
+shot  30_moonlit_grove_selma
+PASS  Selma gives a moonstone on a second night
+PASS  the night market opens after dark
+shot  31_night_market
+PASS  buy moon tea across the market stall
+PASS  buy a sea chart at Joar's stall
+PASS  the market is gone by day
+PASS  Ambrose the collector is rare (13 of 60 days)
+PASS  sell the old coin (1200) and the moonstone (700) to Ambrose
+PASS  Sigve tells his story and moves on (stage 1)
+PASS  Sigve is now resting at the inn
+PASS  Liv hands over the tern plank
+PASS  Sigve went out to Sule Ness
+PASS  Sigve's thanks: his brother's compass and 300 coins
+PASS  Sigve settles down in Eirik's workshop
+PASS  Liv gives smoked fish after visits on three days
+PASS  Marit gives bread after four talks
+PASS  saying NO keeps the choice open
+PASS  FD2: the fox kit joins you
+PASS  the fox follows one tile behind
+shot  32_fox_follows
+PASS  C hides the fox
+PASS  a hidden fox still sniffs out buried coins (500)
+shot  33_fox_digs
+PASS  the fox digs up Liv's lost knife
+PASS  return the knife: Liv's lucky hook
+PASS  declining keeps the Amber Heart
+PASS  FD1: the Amber Heart goes to Tove
+PASS  the thicket has parted: the trail to Mossholt is open
+shot  34_mossholt
+PASS  Arne in Mossholt carves an owl for you
+PASS  Fyrholm stays closed (Ole has no amber)
+shot  35_world_map
+PASS  world map marker is inside the map
+shot  36_items
+shot  37_inn_evening
+PASS  the inn fireplace is lit
+PASS  save data round-trips (coins, items, memory)
+PASS  FD2: the owlet joins you instead
+shot  40_owl_and_pen
+PASS  the owl reveals a hidden way through the hedge
+shot  41_owl_hidden_way
+PASS  Owl's Hollow chest (500)
+PASS  the owl cannot dig (the fox's pouch stays hidden)
+PASS  FD1: the Amber Heart goes to Ole instead
+PASS  Ole rows you to Fyrholm
+shot  42_fyrholm
+PASS  Brit lives on Fyrholm
+PASS  sea glass in the Fyrholm tide pools
+PASS  the boat takes you back to Sule Ness
+PASS  Mossholt stays closed (no amber for the forest)
+PASS  buy the Dragon Scale (9000), a hint of things to come
+shot  43_erne_flight
+PASS  the great erne carries you over the ravine
+PASS  Erne Cliff: the old watch's paychest (3000)
+shot  44_erne_cliff
+PASS  and back across
+PASS  a new game starts with no traversal items
+PASS  the world map: the eastern ocean is a mystery
+PASS  the world map: unvisited places have no name
+shot  49_world_map_at_the_start
+PASS  the map cursor moves
+PASS  without the Otter Stick you cannot swim
+PASS  fallen trees block the way to the Moonlit Grove
+shot  50_axe_in_the_stump
+PASS  stage 1: Tove's old axe, stuck in a stump north of the river
+PASS  the axe clears both fallen trees
+PASS  stage 2: Edvin gives you the Otter Stick
+PASS  now the otter carries you
+PASS  swim off the south edge into Copperhavn bay
+shot  51_copperhavn_bay
+shot  52_copperhavn
+PASS  stage 3: Gerda gives you Old Bjorn's Pickaxe
+PASS  Captain Nils gives you a ferry pass
+PASS  day 1: the ferry is in Keelvik, not here
+PASS  day 2: the ferry is in Copperhavn
+shot  53_ferry_crossing
+PASS  the ferry crossing ends at the Keelvik pier
+PASS  one crossing a day: the ferry waits in Keelvik
+PASS  day 3: back on schedule (Keelvik)
+PASS  day 4: Copperhavn again
+PASS  enter the Copperhavn museum
+PASS  lend the glass float to the museum
+PASS  the float is on show on its pedestal
+shot  54_museum
+PASS  a cracked rock blocks the Copper Hill path
+PASS  the new pickaxe breaks it
+shot  55_telescope_view
+PASS  the hill telescope shows the far north
+PASS  the pickaxe opens the Sule Ness cave
+PASS  stage 4: the Bird Bell, deep in the cave
+shot  56_hanging_from_the_erne
+PASS  the erne carries you over the ravine by its feet
+PASS  walk off Erne Cliff into the snowy north
+shot  57_northern_plateau
+PASS  the erne lifts you over the northern chasm
+shot  58_fjelltarn
+PASS  stage 5: Inga gives you the Seal Flute
+PASS  the seal carries you through the icy fjord
+shot  59_seal_in_the_fjord
+PASS  swim to the whale bay and climb onto the jetty
+shot  60_skarvsker
+PASS  stage 6: Old Halla gives you the Whale Horn
+PASS  a cracked rock on the summit path
+PASS  the summit telescope shows the dragon shrine
+PASS  the whale is twice as fast as the otter
+PASS  blow the Whale Horn where the water turns deep
+PASS  the whale swims out into the eastern ocean
+shot  61_whale_on_the_ocean
+PASS  across the ocean: the eastern continent
+shot  62_whitborg
+PASS  the Jade River has no bridge: the otter swims it
+PASS  a fallen tree on the pilgrims' way
+PASS  the axe clears it
+PASS  the erne carries you over the shrine chasm
+PASS  the pickaxe clears the last rock
+shot  63_dragon_shrine
+PASS  stage 7: Master Lan gives you the Dragon Band
+PASS  the Dragon Band is worn, visibly
+PASS  dragon landing places are found on foot (5)
+shot  64_dragon_flight
+PASS  the dragon flies you home to Keelvik
+PASS  the dragon needs an hour's rest
+PASS  an hour later it flies again (to Copperhavn)
+PASS  a hidden path through the Lauvdal woods
+shot  65_secret_clearing
+PASS  the Running Shoes: walking is faster for good
+shot  66_world_map_explored
+PASS  visited towns, the ferry, the museum, telescopes and landings appear on the map
+PASS  visited places now have names
+PASS  the ocean is no longer a mystery
+PASS  new progress is saved too (landings, exhibits, telescopes, ferry)
+0 checks failed
