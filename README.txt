@@ -18,6 +18,7 @@ CONTROLS
   C                   companion: follow / hide           E / R      pouch / walking stick
   T                   jump to the next time of day       Tab, 1-4   change season
   F9                  new game                           H          help
+  F1                  debug sliders (speed, camera, screen and UI scale, tilt-shift, clock), live
   Tools are used by themselves: walk up to a fallen tree with the axe, or a cracked rock with the pickaxe,
   and press Space. Face water and press Space to swim.
 
@@ -89,4 +90,5 @@ FOLDERS
 TESTING WITHOUT A KEYBOARD
   godot --path . -- --autotest=shots --out=SOME_FOLDER   plays through everything + screenshots
   godot --path . -- --autotest=part3 --out=SOME_FOLDER   only the new progression (start to dragon)
+  godot --path . -- --autotest=input --out=SOME_FOLDER   only keyboard taps (also runs at the end of "shots")
   godot --path . --write-movie tour.avi --fixed-fps 30 -- --autotest=tour

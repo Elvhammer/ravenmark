@@ -12,6 +12,15 @@ var moving := false
 var shown := true                    # C toggles this; abilities work either way
 var anim := 0.0
 var spr: Sprite2D
+var _from := Vector2.ZERO           # the step under way: from, to, its length, time so far, which paw leads
+var _to := Vector2.ZERO
+var _dur := 0.1
+var _t := 0.0
+var _foot := 0
+
+
+func _ready() -> void:
+	process_priority = -1                                 # moves before main._process aims the camera, like the hero
 
 
 func setup(k: String) -> void:
@@ -46,11 +55,13 @@ func follow_to(t: Vector2i, dur: float) -> void:
 		place(t, facing)
 		return
 	facing = Vector2i(sign(d.x), 0) if abs(d.x) >= abs(d.y) else Vector2i(0, sign(d.y))
+	_from = tile_pos(tile)                                # (the player's next step can start before this one's
+	_to = tile_pos(t)                                     #  last frame: start from the tile, not from mid-step)
 	tile = t
 	moving = true
-	var tw := create_tween()
-	tw.tween_property(self, "position", tile_pos(t), dur)
-	tw.finished.connect(func() -> void: moving = false)
+	_dur = dur
+	_t = 0.0
+	_foot = 1 - _foot
 
 
 func walk_to(t: Vector2i, dur := 0.35) -> void:
@@ -63,12 +74,20 @@ func walk_to(t: Vector2i, dur := 0.35) -> void:
 
 func _process(delta: float) -> void:
 	anim += delta
+	var stride := false
+	if moving:                                            # smooth (sub-pixel) glide, in step with the hero
+		_t += delta
+		position = _from.lerp(_to, clampf(_t / _dur, 0.0, 1.0))
+		stride = _dur < 0.09 or _t < _dur * 0.5
+		if _t >= _dur:
+			moving = false
 	if not spr:
 		return
 	var f := 0
 	if kind == "owl":
-		f = int(anim * 6.0) % 4
-	elif moving:
-		f = int(anim * 10.0) % 4
+		f = int(anim * 6.0) % 4                           # the owlet's wings beat all the time
+	elif stride:
+		## like the hero: frames follow the step (0/2 stand, 1/3 stride), so no pose flashes for a frame
+		f = 1 + 2 * _foot
 	spr.frame = ROW[facing] * 4 + f
 	spr.flip_h = facing == Vector2i.LEFT

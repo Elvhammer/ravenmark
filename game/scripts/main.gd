@@ -7,13 +7,15 @@ extends Node
 ## touch, NPC placement, seasons, the clock and tide, lights and the cave darkness, travel cutscenes. story.gd owns game state and runs the dialogue
 ## scripts in data/content.json; ui.gd draws the HUD and menus.
 ##
-## The game renders at 320x180 in a SubViewport (pixel-perfect). Inside it, layer 1 recolours every palette
-## colour for the time of day (daynight.gdshader + art/daynight_lut.png), layer 2 is cave darkness, layer 3
-## holds light halos. The result is shown 4x through the tilt-shift shader; the HUD sits on top, unblurred.
+## The world is 320x180 game pixels, drawn by a SubViewport at the window's resolution with the camera zoomed in
+## by a whole number (game_scale), so every art pixel is a crisp block but things can move in 1/game_scale steps:
+## scrolling and walking are smooth instead of jumping a whole block at a time. Inside the SubViewport, layer 1
+## recolours every palette colour for the time of day (daynight.gdshader + art/daynight_lut.png), layer 2 is
+## cave darkness, layer 3 holds light halos. It is shown through the tilt-shift shader; the HUD sits on top.
 
 const TILE := 16
 const VIEW := Vector2i(320, 180)
-const SCALE := 4
+const UI_RATIO := 0.8                # the HUD is drawn a little smaller than the game (0.8 x its pixel scale)
 const SEASONS := ["spring", "summer", "autumn", "winter"]
 const WINTER := 3
 const DAYS_PER_SEASON := 2           # seasons change at midnight every 2 days (Tab / 1-4 switch instantly)
@@ -21,6 +23,9 @@ const DAYS_PER_SEASON := 2           # seasons change at midnight every 2 days (
 const PHASE_START := {"dawn": 4.0, "day": 7.0, "dusk": 19.0, "night": 22.0}
 const DIRS := {"up": Vector2i.UP, "down": Vector2i.DOWN, "left": Vector2i.LEFT, "right": Vector2i.RIGHT}
 const START := Vector2i(55, 22)
+const CAM_SMOOTH := 7.0              # camera smoothing when walking or standing
+const CAM_LAG := 40.0                # the camera never trails the hero by more than this (px): it catches up faster
+                                     # on the whale, so fast rides never leave the screen (180 px tall)
 
 var story
 var ui
@@ -51,10 +56,19 @@ var zone_title := ""
 var _tick := -1
 var _npc_clock := 0.0
 var _lantern_note := false
-var _faded: Array = []
+var _faded: Array = []               # sprites that are see-through, or fading back
+var _fade_want := {}                 # sprites that should be see-through right now
 var _fade_clock := 0.0
 
 var viewport: SubViewport
+var screen: TextureRect              # the game picture: the 320 x 180 world at a whole-number scale
+var game_scale := 4                  # window pixels per game pixel (the biggest that fits the window)
+var ui_scale := 3
+var scale_override := 0              # debug window: 0 = fit the window
+var ui_scale_override := 0
+var cam_smooth := CAM_SMOOTH         # (the debug window changes these live)
+var cam_lag := CAM_LAG
+var debug
 var world: Node2D
 var ground: Sprite2D
 var lowtide: Sprite2D
@@ -63,6 +77,7 @@ var player
 var companion
 var camera: Camera2D
 var daynight_mat: ShaderMaterial
+var dn_rect: ColorRect
 var dark_rect: ColorRect
 var dark_mat: ShaderMaterial
 var glow_layer: CanvasLayer
@@ -92,6 +107,12 @@ func _ready() -> void:
 	_build_view()
 	ui.build(self)
 	_build_world()
+	get_viewport().size_changed.connect(relayout)
+	_fit_window()
+	relayout()
+	debug = load("res://game/scripts/debug.gd").new()
+	add_child(debug)
+	debug.setup(self)
 	var test_mode := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--autotest="):
@@ -193,16 +214,45 @@ func _build_view() -> void:
 	viewport.snap_2d_vertices_to_pixel = true
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(viewport)
-	var screen := TextureRect.new()
+	screen = TextureRect.new()
 	screen.texture = viewport.get_texture()
 	screen.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	screen.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	screen.stretch_mode = TextureRect.STRETCH_SCALE
-	screen.size = Vector2(VIEW * SCALE)
+	screen.size = Vector2(VIEW * 4)
+	screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://game/shaders/tiltshift.gdshader")
 	screen.material = mat
 	add_child(screen)
+
+
+func _fit_window() -> void:
+	## on start: the biggest whole-number scale whose window fits the screen (5x = 1600 x 900 on a 1080p screen)
+	if DisplayServer.get_name() == "headless" or DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
+		return
+	var area := DisplayServer.screen_get_usable_rect()
+	var s := clampi(int(minf(area.size.x * 0.94 / VIEW.x, area.size.y * 0.94 / VIEW.y)), 2, 12)
+	var size := VIEW * s
+	DisplayServer.window_set_size(size)
+	DisplayServer.window_set_position(area.position + (area.size - size) / 2)
+
+
+func relayout() -> void:
+	## the game picture at the biggest whole-number scale that fits the window, centred; the HUD over it
+	var win := get_viewport().get_visible_rect().size
+	game_scale = scale_override if scale_override > 0 else maxi(1, int(minf(win.x / VIEW.x, win.y / VIEW.y)))
+	var px := VIEW * game_scale
+	viewport.size = px                                          # render at screen resolution ...
+	camera.zoom = Vector2(game_scale, game_scale)               # ... with every game pixel a game_scale block
+	dn_rect.size = Vector2(px)
+	dark_rect.size = Vector2(px)
+	dark_mat.set_shader_parameter("px", float(game_scale))
+	(screen.material as ShaderMaterial).set_shader_parameter("px", float(game_scale))
+	screen.size = Vector2(px)
+	screen.position = ((win - screen.size) / 2.0).floor()
+	ui_scale = ui_scale_override if ui_scale_override > 0 else maxi(1, roundi(game_scale * UI_RATIO))
+	ui.layout(screen.position, screen.size, ui_scale)
 
 
 func _build_world() -> void:
@@ -216,9 +266,11 @@ func _build_world() -> void:
 	world.add_child(bg)
 	ground = Sprite2D.new()
 	ground.centered = false
-	world.add_child(ground)
+	ground.z_index = -2                                         # below flat things at z -1 (rugs, dug holes,
+	world.add_child(ground)                                     # open hedges, shadows); at 0 it hid them
 	lowtide = Sprite2D.new()
 	lowtide.centered = false
+	lowtide.z_index = -2
 	lowtide.texture = load("res://game/art/ground/lowtide.png")
 	var lt: Dictionary = meta["_lowtide"]
 	lowtide.position = Vector2(float(lt["x"]), float(lt["y"]))
@@ -228,13 +280,14 @@ func _build_world() -> void:
 	world.add_child(ysort)
 	player = load("res://game/scripts/player.gd").new()
 	player.main = self
+	player.process_priority = -1                                # moves before main._process aims the camera
 	ysort.add_child(player)
 	companion = load("res://game/scripts/companion.gd").new()
 	companion.visible = false
 	ysort.add_child(companion)
 	camera = Camera2D.new()
 	camera.position_smoothing_enabled = true
-	camera.position_smoothing_speed = 7.0
+	camera.position_smoothing_speed = CAM_SMOOTH
 	world.add_child(camera)
 	camera.make_current()
 	_build_layers()
@@ -244,14 +297,14 @@ func _build_layers() -> void:
 	var dn_layer := CanvasLayer.new()                           # 1: recolour for the time of day (palette LUT)
 	dn_layer.layer = 1
 	viewport.add_child(dn_layer)
-	var dn := ColorRect.new()
-	dn.size = Vector2(VIEW)
-	dn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dn_rect = ColorRect.new()
+	dn_rect.size = Vector2(VIEW)
+	dn_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	daynight_mat = ShaderMaterial.new()
 	daynight_mat.shader = load("res://game/shaders/daynight.gdshader")
 	daynight_mat.set_shader_parameter("lut", load("res://game/art/daynight_lut.png"))
-	dn.material = daynight_mat
-	dn_layer.add_child(dn)
+	dn_rect.material = daynight_mat
+	dn_layer.add_child(dn_rect)
 	var dk_layer := CanvasLayer.new()                           # 2: cave darkness
 	dk_layer.layer = 2
 	viewport.add_child(dk_layer)
@@ -328,6 +381,7 @@ func _clear_map() -> void:
 	ents = []
 	dyn = {}
 	_faded = []
+	_fade_want = {}
 	for n in map_nodes:
 		_free_node(n)
 	map_nodes = []
@@ -767,7 +821,7 @@ func _update_darkness() -> void:
 	dark_rect.visible = is_dark()
 	if not is_dark():
 		return
-	var xf := viewport.get_canvas_transform()
+	var xf := viewport.get_canvas_transform().scaled(Vector2.ONE / float(game_scale))   # world -> game pixels on screen
 	var pts := PackedVector3Array()
 	if story.has("lantern"):
 		var p: Vector2 = xf * (player.position + Vector2(0, -8))
@@ -1486,6 +1540,8 @@ func _process(delta: float) -> void:
 			hanging.rotation = 0.12 * sin(Time.get_ticks_msec() * 0.006)
 	else:
 		camera.position = player.position + Vector2(0, -6)
+	# smoothing trails a moving target by speed / smoothing: raise it so the trail stays within CAM_LAG
+	camera.position_smoothing_speed = maxf(cam_smooth, player.speed() / cam_lag)
 	if time_running and not busy():
 		hour += delta * hours_per_second
 		if hour >= 24.0:
@@ -1504,6 +1560,7 @@ func _process(delta: float) -> void:
 	if _fade_clock <= 0.0:
 		_fade_clock = 0.08
 		_update_occluders()
+	_fade_step(delta)
 	_npc_clock -= delta
 	if _npc_clock <= 0.0:
 		_npc_clock = 1.6
@@ -1515,10 +1572,7 @@ func _process(delta: float) -> void:
 
 func _update_occluders() -> void:
 	## trees and roofs in front of the player turn see-through, so you never lose sight of yourself
-	for s in _faded:
-		if is_instance_valid(s):
-			s.modulate.a = 1.0
-	_faded = []
+	_fade_want = {}
 	if not player.visible:
 		return
 	var p: Vector2 = player.position + Vector2(0, -10)
@@ -1531,8 +1585,22 @@ func _update_occluders() -> void:
 			continue
 		var r := Rect2(s.position + s.offset, s.texture.get_size())
 		if r.has_point(p) or r.has_point(p + Vector2(0, -8)):
-			s.modulate.a = 0.55
-			_faded.append(s)
+			_fade_want[s] = true
+			if not _faded.has(s):
+				_faded.append(s)
+
+
+func _fade_step(delta: float) -> void:
+	## see-through trees and roofs fade over 0.15 s instead of popping (with quick steps they popped a lot)
+	var keep: Array = []
+	for s in _faded:
+		if not is_instance_valid(s):
+			continue
+		var want: bool = _fade_want.has(s)
+		s.modulate.a = move_toward(s.modulate.a, 0.55 if want else 1.0, delta * 3.0)
+		if want or s.modulate.a < 1.0:
+			keep.append(s)
+	_faded = keep
 
 
 func _key_action(k: int) -> String:
@@ -1560,17 +1628,30 @@ func _key_action(k: int) -> String:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and ui.mode in ["map", "map_text"]:
-		ui.map_click(event.position / float(SCALE))
+		ui.map_click(event.position)
+		return
+	if event is InputEventJoypadButton and event.pressed and not busy():
+		var pd: Vector2i = {JOY_BUTTON_DPAD_UP: Vector2i.UP, JOY_BUTTON_DPAD_DOWN: Vector2i.DOWN,
+			JOY_BUTTON_DPAD_LEFT: Vector2i.LEFT, JOY_BUTTON_DPAD_RIGHT: Vector2i.RIGHT}.get(event.button_index, Vector2i.ZERO)
+		if pd != Vector2i.ZERO:
+			player.queue_tap(pd)
 		return
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
 	var k: int = event.physical_keycode
+	if k == KEY_F1:
+		debug.toggle()                                    # the debug sliders, any time
+		return
 	if ui.busy():
 		var a := _key_action(k)
 		if a != "":
 			ui.input(a)
 		return
 	if cutscene:
+		return
+	var dir := _key_action(k)
+	if DIRS.has(dir):
+		player.queue_tap(DIRS[dir])                       # every tap counts, even one let go mid-step
 		return
 	match k:
 		KEY_TAB:

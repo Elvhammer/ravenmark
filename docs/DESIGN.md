@@ -423,7 +423,7 @@ PROGRESSION OK, with the Running Shoes reachable from the start as an optional s
 ### Systems
 - Region edges: each outdoor map lists linked edge spans; stepping off the edge loads the next map at the
   matching tile, keeping your mount. Water you can't swim stops you at the edge.
-- Whale: mount on deep ocean tiles (and open sea once riding), 0.05 s per tile (otter and seal 0.10).
+- Whale: mount on deep ocean tiles (and open sea once riding), 0.025 s per tile (otter and seal 0.05).
 - Dragon: F opens a list of landing places found on foot (6: Keelvik, Copperhavn, Fjelltarn, Skarvsker,
   Whitborg, the shrine); one flight per in-game hour. The dragon is a head plus 24 segments that follow the
   head's own path with a travelling wave.
@@ -436,4 +436,34 @@ PROGRESSION OK, with the Running Shoes reachable from the start as an optional s
 - World map: drawn from the real maps; undiscovered places are "???", visited towns get names and icons;
   icons for caves, ferry stops, the museum, telescopes and (with the band) landing places; the ocean fades
   out to the east until the Whale Horn, and selecting it shows a mysterious note.
-- Running Shoes: walk 0.16 s / run 0.085 s per tile instead of 0.20 / 0.11.
+- Movement speed: every step lasts its base time / MOVE_SPEED (0.7, i.e. 30% slower than the base times).
+  Base times: walk 0.10, run 0.055, otter/seal 0.05, whale 0.025, ledge hop 0.17, onto an animal 0.125,
+  Running Shoes 0.08 / 0.0425. So walking is 0.143 s per tile; surfing stays twice walking speed and the whale
+  twice the otter. (History: 0.20 s walking at first, halved, then slowed 30%.)
+- Screen: the 320 x 180 game is shown at the biggest whole-number scale that fits the window, centred. On start
+  the window is sized to the biggest scale that fits the screen (5x = 1600 x 900 on a 1080p screen), and it
+  refits when resized. The HUD uses 0.8 x the game scale (rounded), so it is a little smaller than the world;
+  its widgets keep their 320 x 180 positions and are pinned to corners, the bottom or the middle.
+- Rendering: the world is still 320 x 180 game pixels, but the SubViewport renders it at the screen size with
+  the camera zoomed by the game scale. Every art pixel stays a crisp 5 x 5 block (nearest filtering), but the
+  camera, hero and companion can sit between game pixels, so scrolling and walking move in 1-screen-pixel steps
+  instead of jumping a whole 5-pixel block (which looked like new rows "spawning in" unevenly at the edges, and
+  made the hero vibrate against the ground when hero and camera rounded differently). The cave darkness dither
+  and the tilt-shift blur are scaled to work in game pixels, so they look the same at every scale.
+- Debug window (F1): live sliders for movement speed and step times, camera smoothing and lag, game and UI
+  scale, tilt-shift, the hour and clock speed; "Copy values" puts them on the clipboard. Nothing is saved.
+- Camera: smoothing 7, raised while you move fast so the camera never trails the hero by more than 40 px
+  (otherwise the whale would carry you off screen).
+- Layers: the hero's gear stacks by child order (body, pouch, stick, band), not z_index, so it hides behind trees
+  with the hero; the stick goes behind the body unless you face up. The ground sits at z -2, under flat things
+  at z -1 (rugs, dug holes, open hedge gaps, the erne and dragon shadows), which the ground used to cover.
+- Trees and roofs in front of the hero fade to see-through over 0.15 s instead of popping.
+- Running Shoes: walk 0.08 s / run 0.0425 s per tile instead of 0.10 / 0.055.
+- Walk animation follows the step, not a clock: each step shows one stride (left and right foot alternate step by
+  step) and then the standing frame for its second half; steps shorter than 0.09 s hold the stride. The fox does
+  the same. The hero and companion glide smoothly (sub-pixel, see Rendering) and move before the camera
+  follows them each frame, so they hold still relative to the camera instead of lagging it by a frame.
+- Input: every direction tap counts. Each key press (or d-pad press) is remembered, up to 4 at a time, and
+  walked as soon as the current step ends, so a tap let go mid-step is never lost. Holding a key walks on as
+  before and stops after the step under way. Remembered taps are dropped when a door, text box or menu takes
+  over. `--autotest=input` sends real key events to check this (also run at the end of `--autotest=shots`).

@@ -1,12 +1,13 @@
 extends Node
-## HUD and menus, drawn at 320 x 180 with the game's pixel font and shown 4x (never blurred).
+## HUD and menus, drawn with the game's pixel font at a whole-number scale (never blurred). Everything is laid
+## out for 320 x 180 HUD pixels; on bigger screens the HUD has more room (`view`), and groups of widgets are
+## pinned to the corners, the bottom edge or the middle by anchor nodes (see layout()).
 ## Dialogue, choices, shops and the item list are coroutines: `await ui.say(...)` returns when the player
 ## has read the text. In autoplay mode (autotest) text advances by itself and choices come from `queue`.
 
 signal _done(result)
 
-const VIEW := Vector2(320, 180)
-const SCALE := 4
+const VIEW := Vector2(320, 180)      # the size every widget position below is designed for
 const CREAM := Color("F2E3B3")
 const GOLD := Color("E0A256")
 const INK := Color("1E1B2C")
@@ -17,6 +18,12 @@ const TYPE_SPEED := 70.0             # characters per second
 var main
 var story
 var hud: Control
+var view := VIEW                     # the HUD's real size in HUD pixels (the game picture / ui scale)
+var a_tr: Control                    # anchors: top right, bottom right, bottom middle, middle, dialogue
+var a_br: Control
+var a_low: Control
+var a_mid: Control
+var a_dlg: Control
 var mode := ""                       # "", say, choose, list, inv, map, help
 var autoplay := false
 var auto_delay := 0.05
@@ -77,62 +84,95 @@ func build(m) -> void:
 	layer.layer = 10
 	add_child(layer)
 	hud = Control.new()
-	hud.scale = Vector2(SCALE, SCALE)
+	hud.scale = Vector2(4, 4)
 	hud.size = VIEW
 	hud.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(hud)
-	banner_box = Control.new()
+	# widgets keep their 320 x 180 positions inside an anchor; layout() moves the anchors (draw order = this order)
+	banner_box = Control.new()                                   # top left
 	banner_box.position = Vector2(6, 6)
 	banner_box.visible = false
 	hud.add_child(banner_box)
-	badge = _rect(hud, Vector2(250, 6), null)
+	a_tr = _anchor()                                             # top right: season, clock, coins
+	badge = _rect(a_tr, Vector2(250, 6), null)
 	_build_clock()
 	coins_box = Control.new()
 	coins_box.position = Vector2(VIEW.x - 6 - 48, 42)
-	hud.add_child(coins_box)
+	a_tr.add_child(coins_box)
 	_panel(coins_box, Vector2.ZERO, Vector2(48, 14))
 	_rect(coins_box, Vector2(4, 3), tex("res://game/art/hud/hud_coin.png"))
 	coins_label = _rect(coins_box, Vector2(15, 4), null)
-	hint = _rect(hud, Vector2.ZERO, text_tex("H: HELP", DIM, false))
+	a_br = _anchor()                                             # bottom right: the help hint
+	hint = _rect(a_br, Vector2.ZERO, text_tex("H: HELP", DIM, false))
 	hint.position = Vector2(VIEW.x - hint.texture.get_width() - 4, VIEW.y - 10)
-	toast_box = _panel(hud, Vector2(6, 146), Vector2(308, 28))
+	a_low = _anchor()                                            # bottom middle: messages
+	toast_box = _panel(a_low, Vector2(6, 146), Vector2(308, 28))
 	toast_box.visible = false
 	for i in 2:
 		toast_lines.append(_rect(toast_box, Vector2(8, 6 + i * 10), null))
-	name_box = _panel(hud, Vector2(12, 119), Vector2(40, 14))
-	name_label = _rect(name_box, Vector2(6, 3), null)
-	name_box.visible = false
-	box = _panel(hud, Vector2(6, 132), Vector2(308, 42))
-	box.visible = false
-	box_icon = _rect(box, Vector2(8, 12), null)
-	for i in 3:
-		box_lines.append(_rect(box, Vector2(8, 6 + i * 10), null))
-	box_next = _rect(box, Vector2(294, 34), tex("res://game/art/hud/next.png"))
-	choice_box = _panel(hud, Vector2(200, 90), Vector2(100, 30))
-	choice_box.visible = false
-	choice_cursor = _rect(choice_box, Vector2(6, 6), tex("res://game/art/hud/cursor.png"))
-	list_box = _panel(hud, Vector2(14, 8), Vector2(292, 120))
+	a_mid = _anchor()                                            # middle: lists, the world map, help
+	list_box = _panel(a_mid, Vector2(14, 8), Vector2(292, 120))
 	list_box.visible = false
-	map_box = _panel(hud, Vector2(10, 4), Vector2(300, 172))
+	map_box = _panel(a_mid, Vector2(10, 4), Vector2(300, 172))
 	map_box.visible = false
-	help_box = _panel(hud, Vector2(30, 20), Vector2(260, 140))
+	help_box = _panel(a_mid, Vector2(30, 20), Vector2(260, 140))
 	help_box.visible = false
-	view_box = ColorRect.new()
+	view_box = ColorRect.new()                                   # the whole HUD: telescope view
 	view_box.color = INK
 	view_box.size = VIEW
 	view_box.visible = false
 	view_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(view_box)
 	view_img = _rect(view_box, Vector2.ZERO, null)
-	hud.move_child(box, -1)
-	hud.move_child(name_box, -1)
-	fader = ColorRect.new()
+	a_dlg = _anchor()                                            # bottom middle, on top: dialogue and choices
+	choice_box = _panel(a_dlg, Vector2(200, 90), Vector2(100, 30))
+	choice_box.visible = false
+	choice_cursor = _rect(choice_box, Vector2(6, 6), tex("res://game/art/hud/cursor.png"))
+	name_box = _panel(a_dlg, Vector2(12, 119), Vector2(40, 14))
+	name_label = _rect(name_box, Vector2(6, 3), null)
+	name_box.visible = false
+	box = _panel(a_dlg, Vector2(6, 132), Vector2(308, 42))
+	box.visible = false
+	box_icon = _rect(box, Vector2(8, 12), null)
+	for i in 3:
+		box_lines.append(_rect(box, Vector2(8, 6 + i * 10), null))
+	box_next = _rect(box, Vector2(294, 34), tex("res://game/art/hud/next.png"))
+	fader = ColorRect.new()                                      # the whole HUD: fades for doors and travel
 	fader.color = INK
 	fader.size = VIEW
 	fader.modulate.a = 0.0
 	fader.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(fader)
+
+
+func _anchor() -> Control:
+	var c := Control.new()
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(c)
+	return c
+
+
+func layout(origin: Vector2, size: Vector2, s: int) -> void:
+	## cover the game picture (origin and size in window pixels) at s window pixels per HUD pixel
+	hud.position = origin
+	hud.scale = Vector2(s, s)
+	view = size / float(s)
+	hud.size = view
+	a_tr.position = Vector2(view.x - VIEW.x, 0)
+	a_br.position = view - VIEW
+	a_low.position = Vector2((view.x - VIEW.x) / 2.0, view.y - VIEW.y)
+	a_dlg.position = a_low.position
+	a_mid.position = (view - VIEW) / 2.0
+	view_box.size = view
+	fader.size = view
+	if view_img.texture:
+		view_img.position = ((view - view_img.texture.get_size()) / 2.0 - Vector2(0, 18)).floor()
+
+
+func to_hud(p: Vector2) -> Vector2:
+	## a window position (mouse) in HUD pixels
+	return (p - hud.position) / hud.scale.x
 
 
 func tex(path: String) -> Texture2D:
@@ -291,7 +331,7 @@ func set_season(sname: String) -> void:
 func _build_clock() -> void:
 	var clock := Control.new()
 	clock.position = Vector2(VIEW.x - 6 - 42, 24)
-	hud.add_child(clock)
+	a_tr.add_child(clock)
 	_rect(clock, Vector2.ZERO, tex("res://game/art/hud/clock_panel.png"))
 	clock_icon = _rect(clock, Vector2(5, 4), null)
 	var atlas: Texture2D = tex("res://game/art/hud/clock_digits.png")
@@ -680,11 +720,11 @@ func _map_cursor_moved() -> void:
 
 
 func map_click(p: Vector2) -> void:
-	## mouse: p is in HUD pixels (320 x 180)
+	## mouse: p is a window position
 	if mode == "map_text":
 		input("confirm")
 		return
-	map_cursor_px = p - map_box.position - Vector2(6, 6)
+	map_cursor_px = to_hud(p) - a_mid.position - map_box.position - Vector2(6, 6)
 	_map_cursor_moved()
 	input("confirm")
 
@@ -702,7 +742,7 @@ func show_view(t: Texture2D, caption: String) -> void:
 	## through the telescope: a round view of somewhere far away
 	view_box.visible = true
 	view_img.texture = t
-	view_img.position = (VIEW - t.get_size()) / 2.0 - Vector2(0, 18)
+	view_img.position = ((view - t.get_size()) / 2.0 - Vector2(0, 18)).floor()
 	var lines := wrap_text(caption.to_upper(), 292)
 	var page := 0
 	while page * 3 < max(1, lines.size()):
@@ -727,7 +767,7 @@ func open_help() -> void:
 		"X / ESC         BACK", "I               ITEMS", "M               WORLD MAP", "C               COMPANION SHOW / HIDE",
 		"E / R           POUCH / WALKING STICK", "F               CALL THE DRAGON (DRAGON BAND)",
 		"T               NEXT TIME OF DAY", "TAB / 1-4       SEASON",
-		"F9              NEW GAME", "H               CLOSE HELP"]
+		"F9              NEW GAME", "F1              DEBUG SLIDERS", "H               CLOSE HELP"]
 	var w := 0
 	for l in lines:
 		w = max(w, text_width(l))

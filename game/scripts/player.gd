@@ -3,17 +3,25 @@ extends Node2D
 ## surfing on the otter (Otter Stick), the seal (Seal Flute, cold water) or the whale (Whale Horn, the open
 ## ocean, much faster), doors, stairs and region edges. The Running Shoes make walking a little faster.
 ## The position is the player's feet, so the player y-sorts correctly with trees and houses.
+## Every tap counts: main.gd passes each direction key press to queue_tap(), so a tap that starts and ends
+## during a step is remembered and walked as soon as the step ends. Holding a key keeps walking as before.
 
 const TILE := 16
-const WALK_TIME := 0.20
-const RUN_TIME := 0.11
-const SURF_TIME := 0.10              # surfing is twice as fast as walking
-const WHALE_TIME := 0.05             # the whale is twice as fast again
-const SHOE_WALK := 0.16              # with the Running Shoes
-const SHOE_RUN := 0.085
+## Seconds per tile at speed 1.0. Every step lasts its time / MOVE_SPEED, so one number speeds up or slows down
+## all movement and keeps the ratios: surfing twice walking, the whale twice the otter.
+const WALK_TIME := 0.10
+const RUN_TIME := 0.055
+const SURF_TIME := 0.05              # otter and seal
+const WHALE_TIME := 0.025            # the whale
+const SURF_START_TIME := 0.125       # stepping off the shore onto the animal
+const SHOE_WALK := 0.08              # with the Running Shoes
+const SHOE_RUN := 0.0425
+const HOP_TIME := 0.17               # a ledge hop (two tiles)
+const MOVE_SPEED := 0.7              # 30% slower than the times above: walking 0.143 s per tile
 const MOUNT_OFFSET := {"otter": Vector2(-36, -38), "seal": Vector2(-36, -38), "whale": Vector2(-48, -44)}
-const HOP_TIME := 0.34
+const STRIDE_SPLIT := 0.09           # steps at least this long show a stride, then stand; quicker ones hold the stride
 const ROW := {Vector2i.DOWN: 0, Vector2i.UP: 1, Vector2i.RIGHT: 2, Vector2i.LEFT: 2}
+const TAP_MAX := 4                   # taps remembered at once (mashing a key never runs away with you)
 
 var main
 var tile := Vector2i.ZERO
@@ -27,6 +35,17 @@ var running := false
 var anim_clock := 0.0
 var hop_offset := 0.0
 var seal_hint_shown := false
+var taps: Array[Vector2i] = []       # direction taps not walked yet, oldest first
+var speed_scale := MOVE_SPEED        # the debug window (F1) changes these two live
+var times := {"walk": WALK_TIME, "run": RUN_TIME, "surf": SURF_TIME, "whale": WHALE_TIME,
+	"surf_start": SURF_START_TIME, "shoe_walk": SHOE_WALK, "shoe_run": SHOE_RUN, "hop": HOP_TIME}
+var _from := Vector2.ZERO            # the step under way: start and end (pixels), length and time so far
+var _to := Vector2.ZERO
+var _dur := 0.1
+var _t := 0.0
+var _hopping := false
+var _carry := 0.0                    # time left over when a step ends, so the next step keeps an even pace
+var _foot := 0                       # which foot leads (frame 1 or 3); swaps every step
 
 var body: Sprite2D
 var pouch: Sprite2D
@@ -39,10 +58,10 @@ func _ready() -> void:
 	body = _sheet("res://game/art/hero/hero_body.png", Vector2(-10, -23))
 	pouch = _sheet("res://game/art/hero/hero_pouch.png", Vector2(-10, -23))
 	stick = _sheet("res://game/art/hero/hero_stick.png", Vector2(-10, -23))
-	mount = _sheet("res://game/art/mounts/surf_otter.png", Vector2(-36, -38))
 	band = _sheet("res://game/art/hero/hero_band.png", Vector2(-10, -23))
-	band.z_index = 2
-	pouch.z_index = 1
+	mount = _sheet("res://game/art/mounts/surf_otter.png", Vector2(-36, -38))
+	## Gear stacks by child order (body, pouch, stick, band), never by z_index: a raised z_index drew the pouch
+	## and band over trees the hero walks behind, and the stick's z -1 hid it under the ground.
 	mount.visible = false
 	_update_frames()
 
@@ -64,6 +83,9 @@ func tile_pos(t: Vector2i) -> Vector2:
 
 func place(t: Vector2i) -> void:
 	tile = t
+	moving = false                                        # (a teleport ends any step under way)
+	_hopping = false
+	hop_offset = 0.0
 	position = tile_pos(t)
 	main.on_player_tile(tile, surfing)
 
@@ -81,12 +103,29 @@ func _input_dir() -> Vector2i:
 	return Vector2i.ZERO
 
 
+func queue_tap(d: Vector2i) -> void:
+	## a direction key went down: it counts as one step even if it is let go before the current step ends
+	if taps.size() < TAP_MAX:
+		taps.append(d)
+
+
 func _process(delta: float) -> void:
 	running = Input.is_physical_key_pressed(KEY_SHIFT) or Input.is_joy_button_pressed(0, JOY_BUTTON_B)
-	if not moving and not main.busy():
+	if moving:
+		_t += delta
+		_follow_path()
+		if _t >= _dur:
+			_carry = minf(_t - _dur, delta)
+			_arrived()
+	if main.busy():
+		taps.clear()                                      # no stale steps after a door, a text box or a menu
+	elif not moving:
 		var d := _input_dir()
+		if not taps.is_empty():
+			d = taps.pop_front()                          # a remembered tap first, then whatever is held
 		if d != Vector2i.ZERO:
-			step(d)
+			step(d)                                       # (starts in this same frame: no pause between steps)
+	_carry = 0.0
 	anim_clock += delta
 	_update_frames()
 
@@ -109,23 +148,23 @@ func step(d: Vector2i) -> void:
 				if mount_kind != "whale":
 					_set_mount("whale")
 					_say("whale_on")
-				_move(target, WHALE_TIME)
+				_move(target, step_time("whale"))
 			else:
 				_say("ocean_deep")
 		elif wk == "sea" and mount_kind == "whale":
-			_move(target, WHALE_TIME)
+			_move(target, step_time("whale"))
 		elif wk == "cold":
 			if main.story.has("seal_flute"):
 				_set_mount("seal")
 				if not seal_hint_shown:
 					seal_hint_shown = true
 					_say("seal_on")
-				_move(target, SURF_TIME)
+				_move(target, step_time("surf"))
 			else:
 				_say("otter_cold")
 		elif wk != "":
 			_set_mount("otter")
-			_move(target, SURF_TIME)
+			_move(target, step_time("surf"))
 		elif main.can_walk(target):
 			surfing = false                                   # step back onto land
 			_move(target, walk_time())
@@ -138,11 +177,16 @@ func step(d: Vector2i) -> void:
 		_move(target, walk_time())
 
 
+func step_time(kind: String) -> float:
+	## seconds for one step of this kind right now
+	return float(times[kind]) / speed_scale
+
+
 func walk_time() -> float:
 	var shoes: bool = main.story.has("running_shoes")
 	if running:
-		return SHOE_RUN if shoes else RUN_TIME
-	return SHOE_WALK if shoes else WALK_TIME
+		return step_time("shoe_run" if shoes else "run")
+	return step_time("shoe_walk" if shoes else "walk")
 
 
 func action() -> void:
@@ -188,7 +232,7 @@ func action() -> void:
 func _start_surf(front: Vector2i, kind: String) -> void:
 	surfing = true
 	_set_mount(kind)
-	_move(front, 0.25)
+	_move(front, step_time("surf_start"))
 
 
 func fit_mount() -> void:
@@ -210,32 +254,48 @@ func _say(id: String) -> void:
 
 
 func _move(t: Vector2i, dur: float) -> void:
-	moving = true
-	var from := tile
-	tile = t
-	main.on_player_step(from, t, dur)
-	var tw := create_tween()
-	tw.tween_property(self, "position", tile_pos(t), dur)
-	tw.finished.connect(_arrived)
+	_begin(t, dur, false)
 
 
 func _hop(t: Vector2i) -> void:
 	## one-way ledge: jump over the ledge tile and land two tiles down
+	_begin(t, step_time("hop"), true)
+
+
+func _begin(t: Vector2i, dur: float, hop: bool) -> void:
+	## start a step; _process moves it along (no tween, so a step ends and the next begins in the same frame)
 	moving = true
-	main.on_player_step(tile, t, HOP_TIME)
+	var from := tile
 	tile = t
-	var start := position
-	var end := tile_pos(t)
-	var arc := func(k: float) -> void:
-		position = start.lerp(end, k)
-		hop_offset = -sin(PI * k) * 9.0
-	var tw := create_tween()
-	tw.tween_method(arc, 0.0, 1.0, HOP_TIME)
-	tw.finished.connect(_arrived)
+	main.on_player_step(from, t, dur)
+	_from = tile_pos(from)
+	_to = tile_pos(t)
+	_dur = dur
+	_t = _carry
+	_hopping = hop
+	_foot = 1 - _foot
+	_follow_path()
+
+
+func speed() -> float:
+	## pixels per second right now (the camera catches up faster when you go faster)
+	if not moving:
+		return 0.0
+	return TILE * (2.0 if _hopping else 1.0) / _dur
+
+
+func _follow_path() -> void:
+	## smooth: the world renders at screen resolution, so a position between two game pixels lands on a screen
+	## pixel and the hero glides with the camera instead of jumping a whole (5x) block against the ground
+	var k := clampf(_t / _dur, 0.0, 1.0)
+	position = _from.lerp(_to, k)
+	hop_offset = -sin(PI * k) * 9.0 if _hopping else 0.0
 
 
 func _arrived() -> void:
 	moving = false
+	_hopping = false
+	position = _to
 	hop_offset = 0.0
 	main.update_companion_visibility()
 	main.on_player_tile(tile, surfing)
@@ -287,11 +347,14 @@ func _update_frames() -> void:
 		mount.frame = row * 4 + int(anim_clock * 5.0) % 4
 		mount.flip_h = flip
 		return
+	## Walk frames follow the step, not a clock: frames 0 and 2 stand, 1 and 3 stride (left / right foot).
+	## Each step shows one stride (feet alternating step by step), then stands for its second half, so it
+	## always ends standing and a pose is never on screen for just a frame or two.
 	var f := 0
-	if moving:
-		f = int(anim_clock * (12.0 if running else 8.0)) % 4
+	if moving and (_hopping or _dur < STRIDE_SPLIT or _t < _dur * 0.5):
+		f = 1 + 2 * _foot
 	for s in [body, pouch, stick, band]:
 		s.frame = row * 4 + f
 		s.flip_h = flip
 		s.position.y = hop_offset
-	stick.z_index = 1 if facing == Vector2i.UP else -1
+	stick.show_behind_parent = facing != Vector2i.UP      # slung on the back: in front only when seen from behind

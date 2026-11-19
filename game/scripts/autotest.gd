@@ -3,6 +3,7 @@ extends Node
 ##   godot --path . -- --autotest=shots --out=/some/dir      (checks + screenshots of every feature)
 ##   godot --path . --write-movie tour.avi -- --autotest=tour (a recorded tour of the wider world)
 ##   godot --path . --write-movie day.avi -- --autotest=daylapse
+##   godot --path . -- --autotest=input --out=/some/dir      (keyboard taps only; also part of "shots")
 ## Text boxes advance on their own (ui.autoplay); answers to choices and shop picks come from ui.queue.
 
 var main
@@ -31,8 +32,11 @@ func run(m, mode: String) -> void:
 		await _part2()
 		await _second_run()
 		await _part3()
+		await _input_taps()
 	elif mode == "part3":
 		await _part3()
+	elif mode == "input":
+		await _input_taps()
 	elif mode == "daylapse":
 		await _daylapse()
 	else:
@@ -52,7 +56,7 @@ func _wait(t: float) -> void:
 
 func _settle() -> void:
 	var guard := 0
-	while (main.player.moving or main.busy()) and guard < 2000:
+	while (main.player.moving or main.busy() or not main.player.taps.is_empty()) and guard < 2000:
 		guard += 1
 		await get_tree().process_frame
 
@@ -912,6 +916,133 @@ func _tour() -> void:
 	await _wait(2.5)
 	ui.close_menus()
 	await _wait(0.5)
+
+
+# ------------------------------------------------------------------ keyboard taps (--autotest=input)
+## These send real key events through Input, like a person at the keyboard: every tap must count (even one
+## that starts and ends during a step), and holding a key must keep walking with no extra step after it.
+func _key(code: Key, down: bool) -> void:
+	var e := InputEventKey.new()
+	e.keycode = code
+	e.physical_keycode = code
+	e.pressed = down
+	Input.parse_input_event(e)
+
+
+func _tap(code: Key) -> void:
+	## the quickest possible tap: down and up before the game sees another frame
+	_key(code, true)
+	_key(code, false)
+
+
+func _frames(n: int) -> void:
+	for i in n:
+		await get_tree().process_frame
+
+
+func _lane() -> Vector2i:
+	## the nearest spot to the start with two clear rows of 11 tiles running west (no doors, nobody in the way)
+	for r in 16:
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				var t: Vector2i = main.START + Vector2i(dx, dy)
+				var ok := true
+				for k in 11:
+					for row in 2:
+						var c: Vector2i = t + Vector2i(-k, -row)
+						if not main.can_walk(c) or main.warps.has(c):
+							ok = false
+				if ok:
+					return t
+	return main.START
+
+
+func _input_taps() -> void:
+	main.new_game()
+	ui.hide_toast()
+	main.set_time(10.0)
+	await _wait(0.3)
+	var p = main.player
+	var lane := _lane()
+	log_lines.append("lane  %s" % lane)
+	var w := Vector2i(-1, 0)
+	var st: float = p.step_time("walk")                # seconds per tile on foot (the waits below scale with it)
+
+	await _teleport(lane, Vector2i.LEFT)
+	_tap(KEY_A)
+	await _frames(2)
+	await _settle()
+	_check("input: a very quick tap walks one tile", p.tile == lane + w)
+
+	await _teleport(lane, Vector2i.LEFT)
+	_tap(KEY_A)
+	await _frames(2)
+	var mid: bool = p.moving
+	await _wait(st * 0.2)
+	_tap(KEY_A)
+	await _frames(2)
+	await _settle()
+	_check("input: a tap during a step is remembered (2 taps, 2 tiles)", mid and p.tile == lane + w * 2)
+
+	await _teleport(lane, Vector2i.LEFT)
+	_tap(KEY_A)
+	await _wait(st * 0.15)
+	_tap(KEY_A)
+	await _wait(st * 0.15)
+	_tap(KEY_A)
+	await _frames(2)
+	await _settle()
+	_check("input: three quick taps inside one step walk three tiles", p.tile == lane + w * 3)
+
+	await _teleport(lane, Vector2i.LEFT)
+	_key(KEY_A, true)
+	await _wait(st * 4.5)
+	_key(KEY_A, false)
+	await _frames(2)
+	var at_release: Vector2i = p.tile                  # (the tile the step under way is heading for)
+	await _settle()
+	log_lines.append("held  A for 4.5 steps' time: %d tiles" % (lane.x - p.tile.x))
+	_check("input: holding a key keeps walking (4-6 tiles in 4.5 steps' time)", lane.x - p.tile.x >= 4 and lane.x - p.tile.x <= 6)
+	_check("input: letting go stops after the step under way (no extra step)", p.tile == at_release)
+
+	await _teleport(lane, Vector2i.LEFT)
+	_key(KEY_A, true)
+	await _wait(st * 1.5)
+	_tap(KEY_W)
+	await _wait(st * 2.5)
+	_key(KEY_A, false)
+	await _frames(2)
+	await _settle()
+	_check("input: a tap of W while holding A steps up once, then walks on west",
+		p.tile.y == lane.y - 1 and p.tile.x < lane.x - 1)
+
+	await _teleport(lane, Vector2i.LEFT)
+	_key(KEY_SHIFT, true)
+	_tap(KEY_A)
+	await _frames(2)
+	await _settle()
+	_key(KEY_SHIFT, false)
+	_check("input: a very quick tap while running walks one tile", p.tile == lane + w)
+
+	await _teleport(lane, Vector2i.LEFT)
+	ui.open_help()
+	_tap(KEY_A)
+	_tap(KEY_D)
+	await _frames(2)
+	_tap(KEY_X)
+	await _wait(0.3)
+	_check("input: taps in an open menu are not walked after it closes", ui.mode == "" and p.tile == lane)
+
+	await _teleport(lane, Vector2i.LEFT)
+	_tap(KEY_A)
+	await _frames(2)
+	_tap(KEY_A)
+	await _frames(2)
+	ui.open_help()                                     # as if a text box popped up during the step
+	await _wait(0.3)
+	_tap(KEY_X)
+	await _wait(0.3)
+	_check("input: a tap waiting when a text box opens is dropped", ui.mode == "" and p.tile == lane + w)
 
 
 func _daylapse() -> void:
